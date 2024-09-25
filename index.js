@@ -4,26 +4,30 @@ const axios = require('axios');
 const cors = require('cors'); // To handle CORS issues
 const app = express();
 const port = 3001;
+const connectDB = require("./db/connect");
+const recordRoute = require("./routes/records");
 
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
+app.use("/api/v1/records", recordRoute);
 
-
-const myHeaders = new Headers();
 const username = "LEkZEmhPbdhDxjXO";
 const password = "CCWSEXL7TRr8vfpYPSmEJ1gXJjWqLNHSKg9vvI7JUnzL8cMquwtY9EHE9pI8rw7A";
 
-let saveCardHref;
 
-//app.use(saveCardHref);
 
-myHeaders.append("Content-Type", "application/vnd.worldpay.sessions-v1.hal+json");
-myHeaders.append("Accept", "application/vnd.worldpay.sessions-v1.hal+json");
-myHeaders.append("Authorization", "Basic " + btoa(`${username}:${password}`));
+//connecting to the DB
+const start = async () =>{
+    try {
+        connectDB("mongodb+srv://bayerleverkusen680:wander5150@cluster0.whyme.mongodb.net/");
+        console.log("connected to mongoDB")
 
-//public variables
-//let cardHref;
-
+        //const singleRecord = axios.get('http://localhost:3001/api/v1/records/' + 'shopper001');
+        //console.log("value is " + singleRecord[uniqueid]);
+    } catch (err){
+        console.log(err)
+    }
+}
 
 // 1. sessions/card API
 app.post('/api/worldpay', async (req, res) => {
@@ -56,12 +60,18 @@ app.post('/api/worldpay', async (req, res) => {
     await axios.request(config)
     .then((response) => {
       //console.log(JSON.stringify(response.data) + " at Express");
-      //cardHref = response.data["_links"]["sessions:session"]["href"];
-      console.log("href in backend is " + response.data["_links"]["sessions:session"]["href"]);
-      //app.set('cardHref', response.data["_links"]["sessions:session"]["href"]);
+      //href = response.data["_links"]["sessions:session"]["href"];
 
-      saveCardHref = response.data["_links"]["sessions:session"]["href"];
-      //nextAction();
+      //Sep22 add mongoDb
+      
+      try{
+            axios.post("http://localhost:3001/api/v1/records", { session_href: response.data["_links"]["sessions:session"]["href"], uniqueid: req.body.uniqueid});
+            return res.send(200,response.data);
+            
+        }catch(err){            
+            console.log(err);
+        }
+
     })
 
     .catch((error) => {
@@ -97,6 +107,7 @@ app.post('/api/worldpay/cvc', async (req, res) => {
     
     await axios.request(config)
     .then((response) => {
+        return res.send(200,response.data);
       //console.log(JSON.stringify(response.data) + " at Express");
       //nextAction();
     })
@@ -109,9 +120,24 @@ app.post('/api/worldpay/cvc', async (req, res) => {
 
 // 3. Create Verified Token -one time API
 app.post('/api/worldpay/verifiedTokens', async (req, res) => {
-    console.log("saveCardHref is " + saveCardHref);
+    
 
     const axios = require('axios');
+
+    //retrieve the session_href from MongoDB
+    //let singleRecord;
+    /*
+    const showRecord = async () => {
+      
+        try{
+            singleRecord = await axios.get(`http://localhost:3001/api/v1/records/${req.body.uniqueid}`);
+            console.log(singleRecord);
+        }catch(err){            
+            console.log(err);
+            }
+    } */   
+   console.log("sessionHref is : " + req.body.sessionHref);
+
     
     let data = 
         {
@@ -119,7 +145,7 @@ app.post('/api/worldpay/verifiedTokens', async (req, res) => {
             "paymentInstrument": {
                 "type": "card/checkout",
                 "cardHolderName": req.body.holdername,
-                "sessionHref": saveCardHref,
+                "sessionHref": req.body.sessionHref,//ここにhrefを入れる,
                 "billingAddress": {
                   "address1": "221BBakerStreet",
                   "address2": "Marylebone",
@@ -147,8 +173,8 @@ app.post('/api/worldpay/verifiedTokens', async (req, res) => {
       maxBodyLength: Infinity,
       url: 'https://try.access.worldpay.com/verifeidTokens/oneTime',
       headers: { 
-        'Content-Type': 'application/vnd.worldpay.sessions-v1.hal+json', 
-        'Accept': 'application/vnd.worldpay.sessions-v1.hal+json', 
+        'Content-Type': 'application/vnd.worldpay.verified-tokens-v3.hal+json', 
+        'Accept': 'application/vnd.worldpay.verified-tokens-v3.hal+json', 
         'Authorization': 'Basic ' + btoa(`${username}:${password}`)
       },
       data : data
@@ -156,7 +182,8 @@ app.post('/api/worldpay/verifiedTokens', async (req, res) => {
     
     await axios.request(config)
     .then((response) => {
-      console.log(JSON.stringify(response.data) + " at Express");
+        return res.send(200,response.data);
+      //console.log(JSON.stringify(response.data) + " at Express");
       //nextAction();
     })
 
@@ -166,6 +193,9 @@ app.post('/api/worldpay/verifiedTokens', async (req, res) => {
 });
 
 
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+start();
